@@ -46,11 +46,12 @@ respect to a SceneManager object.
 # consider rewriting an asynchronous frame grabber in C++ and write a C-API to
 # interface with the Python ctypes module. - B.C.
 
-
 # Standard Library Imports
 from __future__ import print_function
 import os
 import math
+import subprocess
+import numpy as np
 
 # Third-Party Library Imports
 import cv2
@@ -178,6 +179,16 @@ def get_num_frames(cap_list):
     """
     return sum([math.trunc(cap.get(cv2.CAP_PROP_FRAME_COUNT)) for cap in cap_list])
 
+def get_rotation(file_path):
+    # type: (str) -> str
+    """ Get Rotation: Returns the number of degrees a video has been rotated.
+
+    Uses subprocess to call external program ffprobe on the video.
+    """
+    cmd = '''ffprobe -loglevel error -select_streams v:0 -show_entries stream_tags=rotate \
+             -of default=nw=1:nk=1 -i "%s"''' % file_path
+    rotation = subprocess.getoutput(cmd)
+    return rotation or None
 
 def open_captures(video_files, framerate=None, validate_parameters=True):
     # type: (Iterable[str], float, bool) -> Tuple[List[VideoCapture], float, Tuple[int, int]]
@@ -232,6 +243,7 @@ def open_captures(video_files, framerate=None, validate_parameters=True):
 
     try:
         cap_list = [cv2.VideoCapture(video_file) for video_file in video_files]
+        rotation_list = [get_rotation(video_file) for video_file in video_files]
         video_names = [get_video_name(video_file) for video_file in video_files]
         closed_caps = [video_names[i] for i, cap in
                        enumerate(cap_list) if not cap.isOpened()]
@@ -258,7 +270,7 @@ def open_captures(video_files, framerate=None, validate_parameters=True):
         release_captures(cap_list)
         raise
 
-    return (cap_list, cap_framerate, cap_frame_size)
+    return (cap_list, cap_framerate, cap_frame_size, rotation_list)
 
 
 def release_captures(cap_list):
@@ -367,8 +379,8 @@ class VideoManager(object):
         if not video_files:
             raise ValueError("At least one string/integer must be passed in the video_files list.")
         # These VideoCaptures are only open in this process.
-        self._cap_list, self._cap_framerate, self._cap_framesize = open_captures(
-            video_files=video_files, framerate=framerate)
+        self._cap_list, self._cap_framerate, self._cap_framesize, self._rotation_list = \
+            open_captures(video_files=video_files, framerate=framerate)
         self._end_of_video = False
         self._start_time = self.get_base_timecode()
         self._end_time = None
@@ -377,6 +389,7 @@ class VideoManager(object):
         self._curr_cap, self._curr_cap_idx = None, None
         self._video_file_paths = video_files
         self._logger = logger
+        self._rotates = {"270": 1, "180": 2, "90": 3}
         if self._logger is not None:
             self._logger.info(
                 'Loaded %d video%s, framerate: %.2f FPS, resolution: %d x %d',
@@ -642,8 +655,9 @@ class VideoManager(object):
         self._started = False
         self._end_of_video = False
         self._curr_time = self.get_base_timecode()
-        self._cap_list, self._cap_framerate, self._cap_framesize = open_captures(
-            video_files=self._video_file_paths, framerate=self._curr_time.get_framerate())
+        self._cap_list, self._cap_framerate, self._cap_framesize, self._rotation_list = \
+            open_captures(video_files=self._video_file_paths,
+                          framerate=self._curr_time.get_framerate())
         self._curr_cap, self._curr_cap_idx = None, None
 
 
@@ -724,6 +738,7 @@ class VideoManager(object):
         if self._curr_cap is not None and self._end_of_video != True:
             while not retrieved:
                 retrieved, self._last_frame = self._curr_cap.retrieve()
+                self._rotate()
                 if not retrieved and not self._get_next_cap():
                     break
                 if self._downscale_factor > 1:
@@ -734,6 +749,11 @@ class VideoManager(object):
             self._last_frame = None
         return (retrieved, self._last_frame)
 
+
+    def _rotate(self):
+        rotate_degrees = self._rotation_list[self._curr_cap_idx]
+        if rotate_degrees:
+            self._last_frame = np.rot90(self._last_frame, self._rotates[rotate_degrees])
 
     def read(self):
         # type: () -> Tuple[bool, Union[None, numpy.ndarray]]
@@ -785,4 +805,3 @@ class VideoManager(object):
             self._curr_cap_idx += 1
             self._curr_cap = self._cap_list[self._curr_cap_idx]
             return True
-
