@@ -50,11 +50,12 @@ respect to a SceneManager object.
 from __future__ import print_function
 import os
 import math
+import shutil
 import subprocess
-import numpy as np
 
 # Third-Party Library Imports
 import cv2
+import numpy as np
 
 # PySceneDetect Library Imports
 from scenedetect.platform import STRING_TYPE
@@ -184,11 +185,21 @@ def get_rotation(file_path):
     """ Get Rotation: Returns the number of degrees a video has been rotated.
 
     Uses subprocess to call external program ffprobe on the video.
+    Checks for presence of ffprobe prior to calling ffprobe.
     """
-    cmd = '''ffprobe -loglevel error -select_streams v:0 -show_entries stream_tags=rotate \
-             -of default=nw=1:nk=1 -i "%s"''' % file_path
-    rotation = subprocess.getoutput(cmd)
-    return rotation or None
+    try:
+        ffprobe_exists = lambda x: shutil.which('ffprobe') is not None
+        if not ffprobe_exists:
+            # TODO: Inform the user that ffprobe should be installed to handle rotated videos?
+            return None
+
+        cmd = '''ffprobe -loglevel error -select_streams v:0 -show_entries stream_tags=rotate \
+                 -of default=nw=1:nk=1 -i "%s"''' % file_path
+        rotation = subprocess.getoutput(cmd)
+        return rotation or None
+    except:
+        # TODO: Logging of exception?
+        return None
 
 def open_captures(video_files, framerate=None, validate_parameters=True):
     # type: (Iterable[str], float, bool) -> Tuple[List[VideoCapture], float, Tuple[int, int]]
