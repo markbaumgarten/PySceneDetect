@@ -195,8 +195,8 @@ def get_rotation(file_path):
 
         cmd = '''ffprobe -loglevel error -select_streams v:0 -show_entries stream_tags=rotate \
                  -of default=nw=1:nk=1 -i "%s"''' % file_path
-        rotation = subprocess.getoutput(cmd)
-        return rotation or None
+        rotation = int(subprocess.getoutput(cmd))
+        return str(rotation) or None
     except:
         # TODO: Logging of exception?
         return None
@@ -763,8 +763,12 @@ class VideoManager(object):
 
     def _rotate(self):
         rotate_degrees = self._rotation_list[self._curr_cap_idx]
-        if rotate_degrees:
-            self._last_frame = np.rot90(self._last_frame, self._rotates[rotate_degrees])
+        if rotate_degrees is not None:
+            print("Rotating " + str(rotate_degrees) + " degrees")
+            try:
+                self._last_frame = np.rot90(self._last_frame, self._rotates[rotate_degrees])
+            except:
+                print("Failed rotating")
 
     def read(self):
         # type: () -> Tuple[bool, Union[None, numpy.ndarray]]
