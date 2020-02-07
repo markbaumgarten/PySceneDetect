@@ -382,7 +382,7 @@ class CliContext(object):
                 scene_list_filename += '.csv'
             #scene_list_path = self.get_output_file_path(
             #    scene_list_filename, self.scene_list_directory)
-            scene_list_path = 'scenes.csv'
+            scene_list_path = os.environ.get("SCENES_CSV_FILE_PATH", 'scenes.csv')
             logging.info('Writing scene list to CSV file:\n  %s', scene_list_path)
             with open(scene_list_path, 'wt') as scene_list_file:
                 write_scene_list(scene_list_file, scene_list, cut_list)
