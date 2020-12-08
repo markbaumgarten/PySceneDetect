@@ -204,6 +204,7 @@ class CliContext(object):
             middle_images = self.num_images - 2
             for i, (start_time, end_time) in enumerate(scene_list):
                 timecode_list[i].append(start_time)
+                timecode_list[i].append(start_time + 1)
 
                 if middle_images > 0:
                     duration = (end_time.get_frames() - 1) - start_time.get_frames()
@@ -214,6 +215,7 @@ class CliContext(object):
 
                 # End FrameTimecode is always the same frame as the next scene's start_time
                 # (one frame past the end), so we need to subtract 1 here.
+                timecode_list[i].append(end_time - 2)
                 timecode_list[i].append(end_time - 1)
 
         for i in timecode_list:
